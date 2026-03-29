@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legislative Auditor — Kazakhstan</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gov: {
+              50:  '#e8edf5',
+              100: '#c5d0e6',
+              200: '#9fb1d4',
+              300: '#7892c2',
+              400: '#5b7ab5',
+              500: '#3e62a8',
+              600: '#365599',
+              700: '#2c4580',
+              800: '#233668',
+              900: '#1a2850',
+              950: '#0f1a38',
+            },
+            accent: {
+              gold:   '#d4a843',
+              green:  '#2d9c5a',
+              red:    '#c93545',
+              orange: '#d98b2b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gov-950 text-gray-100 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-gov-900 border-b border-gov-700 shadow-lg">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 bg-accent-gold rounded-lg flex items-center justify-center font-bold text-gov-950 text-lg">
+          LA
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight">Система аудита законодательства</h1>
+          <p class="text-sm text-gov-300">Legislative Audit System — Republic of Kazakhstan</p>
+        </div>
+      </div>
+      <div id="status-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-gov-800 text-gov-300">
+        Готов / Ready
+      </div>
+    </div>
+  </header>
+
+  <!-- Controls -->
+  <section class="bg-gov-900/50 border-b border-gov-800">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap items-center gap-4">
+      <div class="flex items-center gap-2">
+        <label for="domain-select" class="text-sm text-gov-300">Домен / Domain:</label>
+        <select id="domain-select"
+                class="bg-gov-800 border border-gov-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-gold">
+          <option value="">Загрузка...</option>
+        </select>
+      </div>
+
+      <button id="run-audit-btn"
+              class="bg-accent-gold hover:bg-yellow-500 text-gov-950 font-semibold px-5 py-2 rounded-lg transition-colors text-sm flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        Запустить аудит / Run Audit
+      </button>
+
+      <div id="progress-bar-container" class="hidden flex-1 min-w-[200px]">
+        <div class="flex items-center gap-2">
+          <div class="flex-1 bg-gov-800 rounded-full h-2 overflow-hidden">
+            <div id="progress-bar" class="bg-accent-gold h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+          <span id="progress-text" class="text-xs text-gov-400 whitespace-nowrap">0%</span>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="flex items-center gap-2 ml-auto">
+        <label class="text-xs text-gov-400">Фильтр / Filter:</label>
+        <select id="filter-type"
+                class="bg-gov-800 border border-gov-700 rounded px-2 py-1 text-xs">
+          <option value="">Все типы / All types</option>
+          <option value="outdated">Устаревшее / Outdated</option>
+          <option value="contradiction">Противоречие / Contradiction</option>
+          <option value="redundant">Избыточность / Redundant</option>
+        </select>
+        <select id="filter-severity"
+                class="bg-gov-800 border border-gov-700 rounded px-2 py-1 text-xs">
+          <option value="">Все / All severity</option>
+          <option value="high">Высокая / High</option>
+          <option value="medium">Средняя / Medium</option>
+          <option value="low">Низкая / Low</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content -->
+  <main class="flex-1 flex max-w-7xl w-full mx-auto">
+
+    <!-- Problem Table -->
+    <section id="table-section" class="flex-1 p-6 overflow-auto">
+      <div id="empty-state" class="flex flex-col items-center justify-center py-20 text-gov-500">
+        <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <p class="text-lg font-medium">Выберите домен и запустите аудит</p>
+        <p class="text-sm mt-1">Select a domain and run an audit to begin</p>
+      </div>
+
+      <div id="results-table-container" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold">
+            Результаты аудита / Audit Results
+            <span id="results-count" class="text-sm font-normal text-gov-400 ml-2"></span>
+          </h2>
+          <div class="flex items-center gap-2 text-xs text-gov-400">
+            <span>Сортировка / Sort:</span>
+            <button data-sort="severity" class="sort-btn px-2 py-1 rounded bg-gov-800 hover:bg-gov-700 transition-colors active-sort">
+              Серьёзность
+            </button>
+            <button data-sort="type" class="sort-btn px-2 py-1 rounded bg-gov-800 hover:bg-gov-700 transition-colors">
+              Тип
+            </button>
+            <button data-sort="law" class="sort-btn px-2 py-1 rounded bg-gov-800 hover:bg-gov-700 transition-colors">
+              Закон
+            </button>
+          </div>
+        </div>
+
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-gov-400 border-b border-gov-800">
+              <th class="pb-2 pl-3 w-8"></th>
+              <th class="pb-2 px-2">Серьёзность</th>
+              <th class="pb-2 px-2">Тип / Type</th>
+              <th class="pb-2 px-2">Закон / Law</th>
+              <th class="pb-2 px-2">Статья / Article</th>
+              <th class="pb-2 px-2">Описание / Description</th>
+            </tr>
+          </thead>
+          <tbody id="problems-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Detail Panel (slides in from right) -->
+    <aside id="detail-panel"
+           class="w-0 overflow-hidden transition-all duration-300 ease-in-out bg-gov-900 border-l border-gov-700 flex flex-col">
+      <div class="p-6 min-w-[480px]">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-lg font-semibold">Детали проблемы / Problem Details</h3>
+          <button id="close-detail"
+                  class="text-gov-400 hover:text-white p-1 rounded hover:bg-gov-800 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div id="detail-content">
+          <!-- Filled by JS -->
+          <div id="detail-meta" class="space-y-3 mb-6"></div>
+
+          <div class="mb-6">
+            <h4 class="text-sm font-medium text-gov-300 mb-2">Описание проблемы / Problem Description</h4>
+            <p id="detail-description" class="text-sm leading-relaxed bg-gov-800 rounded-lg p-4"></p>
+          </div>
+
+          <div class="mb-6">
+            <h4 class="text-sm font-medium text-gov-300 mb-2">Текст закона / Law Text</h4>
+            <pre id="detail-law-text" class="text-xs leading-relaxed bg-gov-950 rounded-lg p-4 overflow-auto max-h-48 whitespace-pre-wrap font-mono"></pre>
+          </div>
+
+          <div class="mb-6">
+            <h4 class="text-sm font-medium text-gov-300 mb-2">Затронутые статьи / Affected Articles</h4>
+            <div id="detail-affected" class="flex flex-wrap gap-2"></div>
+          </div>
+
+          <button id="generate-fix-btn"
+                  class="w-full bg-accent-green hover:bg-green-600 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            Предложить исправление / Generate Fix
+          </button>
+
+          <!-- Fix Result -->
+          <div id="fix-result" class="hidden mt-6">
+            <h4 class="text-sm font-medium text-accent-gold mb-2">Предложенная поправка / Proposed Fix</h4>
+            <div id="fix-text" class="text-sm leading-relaxed bg-gov-800 border border-gov-600 rounded-lg p-4 mb-4"></div>
+
+            <h4 class="text-sm font-medium text-gov-300 mb-2">Обоснование / Explanation</h4>
+            <p id="fix-explanation" class="text-sm leading-relaxed bg-gov-800 rounded-lg p-4 mb-4"></p>
+
+            <div id="fix-affected" class="mb-4">
+              <h4 class="text-sm font-medium text-gov-300 mb-2">Требуют корректировки / Also Affected</h4>
+              <div id="fix-affected-list" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <button id="copy-fix-btn"
+                    class="w-full bg-gov-700 hover:bg-gov-600 text-white py-2 rounded-lg transition-colors text-sm">
+              Копировать / Copy to Clipboard
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-gov-900 border-t border-gov-800 py-3">
+    <div class="max-w-7xl mx-auto px-6 flex items-center justify-between text-xs text-gov-500">
+      <span>Decentrathon 5.0 — Legislative Auditor MVP</span>
+      <span>Powered by Nia + Claude</span>
+    </div>
+  </footer>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>
