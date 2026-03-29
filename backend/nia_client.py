@@ -82,7 +82,7 @@ async def _web_search(query: str, limit: int) -> list[NiaSearchResult]:
         payload = resp.json()
 
     logger.info("Nia web-search raw keys: %s", list(payload.keys()) if isinstance(payload, dict) else type(payload).__name__)
-    logger.debug("Nia web-search raw payload: %s", str(payload)[:500])
+    logger.info("Nia web-search raw payload: %s", str(payload)[:1000])
     return _parse_web_results(payload, limit)
 
 
@@ -134,6 +134,7 @@ def _parse_web_results(payload: dict, limit: int) -> list[NiaSearchResult]:
             payload.get("organic_results")
             or payload.get("organic")
             or payload.get("web_results")
+            or payload.get("other_content")
             or payload.get("results")
             or payload.get("items")
             or payload.get("data")
