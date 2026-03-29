@@ -81,6 +81,8 @@ async def _web_search(query: str, limit: int) -> list[NiaSearchResult]:
         resp.raise_for_status()
         payload = resp.json()
 
+    logger.info("Nia web-search raw keys: %s", list(payload.keys()) if isinstance(payload, dict) else type(payload).__name__)
+    logger.debug("Nia web-search raw payload: %s", str(payload)[:500])
     return _parse_web_results(payload, limit)
 
 
@@ -98,10 +100,13 @@ async def _universal_search(query: str, limit: int) -> list[NiaSearchResult]:
         resp.raise_for_status()
         payload = resp.json()
 
+    logger.info("Nia universal-search raw keys: %s", list(payload.keys()) if isinstance(payload, dict) else type(payload).__name__)
+    logger.debug("Nia universal-search raw payload: %s", str(payload)[:500])
+
     results: list[NiaSearchResult] = []
     raw_items = (
         payload if isinstance(payload, list)
-        else payload.get("results", payload.get("data", []))
+        else payload.get("results", payload.get("data", payload.get("items", [])))
     )
     for item in raw_items:
         if isinstance(item, str):
@@ -109,19 +114,55 @@ async def _universal_search(query: str, limit: int) -> list[NiaSearchResult]:
             continue
         results.append(
             NiaSearchResult(
-                content=item.get("content", item.get("text", item.get("snippet", ""))),
-                url=item.get("url", item.get("source_url", "")),
-                title=item.get("title", ""),
+                content=item.get("content", item.get("text", item.get("snippet", item.get("description", "")))),
+                url=item.get("url", item.get("source_url", item.get("link", ""))),
+                title=item.get("title", item.get("name", "")),
                 score=float(item.get("score", item.get("relevance", 0.0))),
             )
         )
-    return results[:limit]
+    return [r for r in results if r.content][:limit]
 
 
 def _parse_web_results(payload: dict, limit: int) -> list[NiaSearchResult]:
     results: list[NiaSearchResult] = []
 
-    for doc in payload.get("documentation", []):
+    if isinstance(payload, list):
+        raw_items = payload
+    else:
+        # Try every known key Nia might use
+        raw_items = (
+            payload.get("organic_results")
+            or payload.get("organic")
+            or payload.get("web_results")
+            or payload.get("results")
+            or payload.get("items")
+            or payload.get("data")
+            or []
+        )
+
+    for item in raw_items:
+        if isinstance(item, str):
+            results.append(NiaSearchResult(content=item))
+            continue
+        content = (
+            item.get("snippet")
+            or item.get("description")
+            or item.get("summary")
+            or item.get("content")
+            or item.get("text")
+            or ""
+        )
+        if content:
+            results.append(
+                NiaSearchResult(
+                    content=content,
+                    url=item.get("url", item.get("link", item.get("source_url", ""))),
+                    title=item.get("title", item.get("name", "")),
+                )
+            )
+
+    # Original format: documentation + github_repos
+    for doc in payload.get("documentation", []) if isinstance(payload, dict) else []:
         content_parts = []
         if doc.get("summary"):
             content_parts.append(doc["summary"])
@@ -136,7 +177,7 @@ def _parse_web_results(payload: dict, limit: int) -> list[NiaSearchResult]:
                 )
             )
 
-    for repo in payload.get("github_repos", []):
+    for repo in payload.get("github_repos", []) if isinstance(payload, dict) else []:
         if repo.get("description"):
             results.append(
                 NiaSearchResult(
