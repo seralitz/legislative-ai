@@ -133,6 +133,7 @@ async def run_audit(domain: str) -> list[Problem]:
 
         try:
             raw_response = claude_client.complete(AUDIT_SYSTEM, user_msg)
+            logger.info("Batch %d Claude raw response: %s", i, raw_response[:300])
             parsed = _parse_problems_json(raw_response)
             for raw_problem in parsed:
                 combined_text = "\n---\n".join(f.content[:500] for f in batch)
