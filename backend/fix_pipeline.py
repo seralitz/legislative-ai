@@ -46,6 +46,7 @@ async def generate_fix(problem: Problem, law_text: str = "") -> FixResponse:
         problem_type=problem.problem_type.value,
         severity=problem.severity.value,
         description=problem.description,
+        legal_reasoning=problem.legal_reasoning or "(не указано)",
         law_text=context,
     )
 
@@ -54,7 +55,8 @@ async def generate_fix(problem: Problem, law_text: str = "") -> FixResponse:
 
     return FixResponse(
         problem_id=problem.id,
-        proposed_fix=parsed.get("proposed_fix", ""),
-        explanation=parsed.get("explanation", ""),
+        preamble=parsed.get("preamble", ""),
+        amendment_text=parsed.get("amendment_text", ""),
+        justification=parsed.get("justification", ""),
         affected_articles=parsed.get("affected_articles", []),
     )

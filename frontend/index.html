@@ -179,6 +179,17 @@
             <p id="detail-description" class="text-sm leading-relaxed bg-gov-800 rounded-lg p-4"></p>
           </div>
 
+          <div id="detail-reasoning-block" class="mb-6 hidden">
+            <h4 class="text-sm font-medium text-accent-gold mb-2 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              Правовое обоснование / Legal Reasoning
+            </h4>
+            <p id="detail-legal-reasoning" class="text-sm leading-relaxed bg-gov-900 border border-accent-gold/30 rounded-lg p-4 whitespace-pre-wrap"></p>
+          </div>
+
           <div class="mb-6">
             <h4 class="text-sm font-medium text-gov-300 mb-2">Текст закона / Law Text</h4>
             <pre id="detail-law-text" class="text-xs leading-relaxed bg-gov-950 rounded-lg p-4 overflow-auto max-h-48 whitespace-pre-wrap font-mono"></pre>
@@ -200,20 +211,65 @@
 
           <!-- Fix Result -->
           <div id="fix-result" class="hidden mt-6">
-            <h4 class="text-sm font-medium text-accent-gold mb-2">Предложенная поправка / Proposed Fix</h4>
-            <div id="fix-text" class="text-sm leading-relaxed bg-gov-800 border border-gov-600 rounded-lg p-4 mb-4"></div>
 
-            <h4 class="text-sm font-medium text-gov-300 mb-2">Обоснование / Explanation</h4>
-            <p id="fix-explanation" class="text-sm leading-relaxed bg-gov-800 rounded-lg p-4 mb-4"></p>
+            <!-- Document container -->
+            <div class="rounded-lg overflow-hidden border border-gov-600 text-sm">
 
-            <div id="fix-affected" class="mb-4">
-              <h4 class="text-sm font-medium text-gov-300 mb-2">Требуют корректировки / Also Affected</h4>
-              <div id="fix-affected-list" class="flex flex-wrap gap-2"></div>
+              <!-- Document header / preamble -->
+              <div class="bg-gov-700 border-b border-gov-600 px-5 py-4">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-xs font-bold tracking-widest uppercase text-accent-gold border border-accent-gold/40 px-2 py-0.5 rounded">
+                    ПРОЕКТ / DRAFT
+                  </span>
+                  <span class="text-xs text-gov-400">Республика Казахстан</span>
+                </div>
+                <pre id="fix-preamble"
+                     class="whitespace-pre-wrap text-center font-bold leading-relaxed text-gray-100"></pre>
+              </div>
+
+              <!-- Amendment text -->
+              <div class="bg-gov-800/60 border-b border-gov-600 px-5 py-4">
+                <div class="text-xs text-gov-400 font-semibold uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                  Текст поправки / Amendment Text
+                </div>
+                <pre id="fix-amendment-text"
+                     class="whitespace-pre-wrap leading-relaxed text-gray-200 font-mono text-xs"></pre>
+              </div>
+
+              <!-- Justification -->
+              <div class="bg-gov-800/40 border-b border-gov-600 px-5 py-4">
+                <div class="text-xs text-gov-400 font-semibold uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  Пояснительная записка / Justification
+                </div>
+                <pre id="fix-justification"
+                     class="whitespace-pre-wrap leading-relaxed text-gov-200 text-xs"></pre>
+              </div>
+
+              <!-- Affected articles -->
+              <div id="fix-affected" class="bg-gov-800/40 px-5 py-4">
+                <div class="text-xs text-gov-400 font-semibold uppercase tracking-wider mb-2">
+                  Требуют согласования / Also Affected
+                </div>
+                <div id="fix-affected-list" class="flex flex-wrap gap-2"></div>
+              </div>
+
             </div>
 
             <button id="copy-fix-btn"
-                    class="w-full bg-gov-700 hover:bg-gov-600 text-white py-2 rounded-lg transition-colors text-sm">
-              Копировать / Copy to Clipboard
+                    class="mt-3 w-full bg-gov-700 hover:bg-gov-600 text-white py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              Копировать документ / Copy Document
             </button>
           </div>
         </div>

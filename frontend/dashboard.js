@@ -220,6 +220,16 @@ function openDetail(problem) {
   `;
 
   document.getElementById("detail-description").textContent = problem.description;
+
+  const reasoningBlock = document.getElementById("detail-reasoning-block");
+  const reasoningEl = document.getElementById("detail-legal-reasoning");
+  if (problem.legal_reasoning) {
+    reasoningEl.textContent = problem.legal_reasoning;
+    reasoningBlock.classList.remove("hidden");
+  } else {
+    reasoningBlock.classList.add("hidden");
+  }
+
   document.getElementById("detail-law-text").textContent = decodeHtml(problem.law_text) || "(Текст не загружен)";
 
   const affectedContainer = document.getElementById("detail-affected");
@@ -266,8 +276,9 @@ async function requestFix() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const fix = await resp.json();
 
-    document.getElementById("fix-text").textContent = fix.proposed_fix;
-    document.getElementById("fix-explanation").textContent = fix.explanation;
+    document.getElementById("fix-preamble").textContent = fix.preamble;
+    document.getElementById("fix-amendment-text").textContent = fix.amendment_text;
+    document.getElementById("fix-justification").textContent = fix.justification;
 
     const affList = document.getElementById("fix-affected-list");
     affList.innerHTML = "";
@@ -278,6 +289,8 @@ async function requestFix() {
         chip.textContent = art;
         affList.appendChild(chip);
       }
+    } else {
+      affList.innerHTML = '<span class="text-xs text-gov-500">—</span>';
     }
 
     fixResult.classList.remove("hidden");
@@ -297,11 +310,26 @@ async function requestFix() {
 }
 
 function copyFix() {
-  const text = document.getElementById("fix-text").textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    copyFixBtn.textContent = "Скопировано! / Copied!";
+  const preamble      = document.getElementById("fix-preamble").textContent;
+  const amendmentText = document.getElementById("fix-amendment-text").textContent;
+  const justification = document.getElementById("fix-justification").textContent;
+  const fullDoc = [preamble, amendmentText, justification].filter(Boolean).join("\n\n---\n\n");
+
+  navigator.clipboard.writeText(fullDoc).then(() => {
+    copyFixBtn.innerHTML = `
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+      </svg>
+      Скопировано! / Copied!
+    `;
     setTimeout(() => {
-      copyFixBtn.textContent = "Копировать / Copy to Clipboard";
+      copyFixBtn.innerHTML = `
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+        Копировать документ / Copy Document
+      `;
     }, 2000);
   });
 }

@@ -29,6 +29,7 @@ class Problem(BaseModel):
     severity: Severity
     description: str
     affected_articles: list[str] = Field(default_factory=list)
+    legal_reasoning: str = Field(default="", description="Claude's detailed legal reasoning: why this is a problem, which articles conflict, legal impact")
     law_text: str = Field(default="", description="Source law fragment from Nia")
     domain: str = Field(default="")
     source_url: str = Field(default="")
@@ -64,8 +65,9 @@ class FixRequest(BaseModel):
 
 class FixResponse(BaseModel):
     problem_id: str
-    proposed_fix: str
-    explanation: str
+    preamble: str
+    amendment_text: str
+    justification: str
     affected_articles: list[str] = Field(default_factory=list)
 
 
