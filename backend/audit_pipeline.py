@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 import uuid
 from hashlib import sha256
+from pathlib import Path
 from typing import Optional
 
 from backend import claude_client, nia_client
-from backend.config import AUDIT_BATCH_SIZE, DOMAIN_QUERIES
+from backend.config import DOMAIN_QUERIES
 from backend.models import (
     AuditStatus,
     NiaSearchResult,
@@ -17,13 +19,24 @@ from backend.models import (
     Severity,
     SEVERITY_ORDER,
 )
-from backend.prompts import AUDIT_SYSTEM, AUDIT_USER_TEMPLATE, CROSS_CHECK_SYSTEM, CROSS_CHECK_USER_TEMPLATE
+from backend.prompts import (
+    AUDIT_SYSTEM,
+    AUDIT_USER_TEMPLATE,
+    CROSS_CHECK_SYSTEM,
+    CROSS_CHECK_USER_TEMPLATE,
+    PLAN_SYSTEM,
+    PLAN_USER_TEMPLATE,
+)
 
 logger = logging.getLogger(__name__)
+
+_FALLBACK_PATH = Path(__file__).resolve().parent / "fallback_laws.json"
+_MAX_CHARS_PER_BATCH = 80_000  # ~20k tokens per batch
 
 # In-memory store keyed by domain
 _audit_results: dict[str, list[Problem]] = {}
 _audit_status: dict[str, AuditStatus] = {}
+_plan_queries: dict[str, list[str]] = {}
 
 
 def get_status(domain: str) -> Optional[AuditStatus]:
@@ -32,6 +45,83 @@ def get_status(domain: str) -> Optional[AuditStatus]:
 
 def get_results(domain: str) -> list[Problem]:
     return _audit_results.get(domain, [])
+
+
+def store_plan_queries(domain: str, queries: list[str]) -> None:
+    _plan_queries[domain] = queries
+
+
+def _load_fallback(domain: str) -> list[NiaSearchResult]:
+    """Load static law fragments when Nia is unavailable."""
+    try:
+        with _FALLBACK_PATH.open(encoding="utf-8") as f:
+            data = json.load(f)
+        entries = data.get(domain, [])
+        logger.info("Fallback: loaded %d entries for domain '%s'", len(entries), domain)
+        return [NiaSearchResult(**e) for e in entries]
+    except Exception as exc:
+        logger.error("Failed to load fallback laws: %s", exc)
+        return []
+
+
+def _token_cap_batches(
+    fragments: list[NiaSearchResult], max_chars: int = _MAX_CHARS_PER_BATCH
+) -> list[list[NiaSearchResult]]:
+    """Split fragments into batches capped by total character count."""
+    batches: list[list[NiaSearchResult]] = []
+    current: list[NiaSearchResult] = []
+    current_chars = 0
+    for frag in fragments:
+        frag_chars = len(frag.content)
+        if current and current_chars + frag_chars > max_chars:
+            batches.append(current)
+            current = [frag]
+            current_chars = frag_chars
+        else:
+            current.append(frag)
+            current_chars += frag_chars
+    if current:
+        batches.append(current)
+    return batches
+
+
+async def _audit_batch_async(
+    batch: list[NiaSearchResult], domain: str, batch_idx: int
+) -> list[Problem]:
+    """Run a single Claude audit batch asynchronously."""
+    fragments_text = "\n\n---\n\n".join(
+        f"[Источник: {f.url or 'N/A'}]\n{f.content}" for f in batch
+    )
+    user_msg = AUDIT_USER_TEMPLATE.format(domain=domain, law_fragments=fragments_text)
+    try:
+        raw_response = await asyncio.to_thread(claude_client.complete, AUDIT_SYSTEM, user_msg)
+        logger.info("Batch %d Claude raw response: %s", batch_idx, raw_response[:300])
+        parsed = _parse_problems_json(raw_response)
+        combined_text = "\n---\n".join(f.content[:500] for f in batch)
+        problems = []
+        for raw_problem in parsed:
+            problem = _validate_problem(raw_problem, domain, combined_text)
+            if problem:
+                problems.append(problem)
+        return problems
+    except Exception as exc:
+        logger.error("Batch %d audit failed: %s", batch_idx, exc)
+        return []
+
+
+async def plan_audit(domain: str) -> list[str]:
+    """Use Claude to generate 10 targeted search queries for the domain."""
+    user_msg = PLAN_USER_TEMPLATE.format(domain=domain)
+    raw = await asyncio.to_thread(claude_client.complete, PLAN_SYSTEM, user_msg)
+    cleaned = raw.strip()
+    arr_match = re.search(r"\[[\s\S]*\]", cleaned)
+    try:
+        queries: list[str] = json.loads(arr_match.group(0)) if arr_match else []
+    except json.JSONDecodeError:
+        queries = []
+    store_plan_queries(domain, queries)
+    logger.info("Plan generated %d queries for domain '%s'", len(queries), domain)
+    return queries
 
 
 def _dedup_fragments(fragments: list[NiaSearchResult]) -> list[NiaSearchResult]:
@@ -126,7 +216,7 @@ async def _enrich_with_cross_check(
         related_fragments=related_text,
     )
     try:
-        raw = claude_client.complete(CROSS_CHECK_SYSTEM, user_msg)
+        raw = claude_client.complete(CROSS_CHECK_SYSTEM, user_msg, use_thinking=True)
         data = _parse_cross_check_json(raw)
         if not data.get("confirmed", True):
             logger.info("Cross-check did not confirm problem %s — keeping original", problem.id)
@@ -190,15 +280,20 @@ async def run_audit(domain: str) -> list[Problem]:
         status="running", domain=domain, total_batches=0, completed_batches=0
     )
 
-    # Step 1: gather law fragments from Nia using 6 targeted queries per domain
-    targeted_queries = [
-        domain,
-        f"{domain} устаревшие нормы",
-        f"{domain} противоречия в законодательстве",
-        f"{domain} дублирование норм",
-        f"{domain} утратил силу",
-        f"{domain} правовые пробелы",
-    ]
+    # Step 1: determine queries — prefer plan-generated, fall back to 6 fixed
+    plan_qs = _plan_queries.get(domain, [])
+    if plan_qs:
+        targeted_queries = plan_qs
+        logger.info("Using %d plan-generated queries for domain '%s'", len(targeted_queries), domain)
+    else:
+        targeted_queries = [
+            domain,
+            f"{domain} устаревшие нормы",
+            f"{domain} противоречия в законодательстве",
+            f"{domain} дублирование норм",
+            f"{domain} утратил силу",
+            f"{domain} правовые пробелы",
+        ]
 
     all_fragments: list[NiaSearchResult] = []
     for query in targeted_queries:
@@ -209,44 +304,37 @@ async def run_audit(domain: str) -> list[Problem]:
         except Exception as exc:
             logger.error("Nia search failed for '%s': %s", query, exc)
 
-    if not all_fragments:
+    # Step 2: deduplicate; fall back to static laws if Nia returned nothing
+    unique = _dedup_fragments(all_fragments)
+    if not unique:
+        logger.warning("Nia returned 0 results for '%s' — loading fallback_laws.json", domain)
+        unique = _load_fallback(domain)
+    if not unique:
         _audit_status[domain] = AuditStatus(
             status="error",
             domain=domain,
-            error="Nia returned no results. Ensure the data source is indexed.",
+            error="Nia returned no results and fallback is empty.",
         )
         return []
 
-    # Step 2: deduplicate
-    unique = _dedup_fragments(all_fragments)
     logger.info("Fragments: %d total, %d unique", len(all_fragments), len(unique))
 
-    # Step 3: batch
-    batches = _batch(unique, AUDIT_BATCH_SIZE)
+    # Step 3: token-capped batches
+    batches = _token_cap_batches(unique)
+    logger.info(
+        "Domain '%s': %d fragments → %d token-capped batches (parallel)",
+        domain, len(unique), len(batches),
+    )
     _audit_status[domain].total_batches = len(batches)
 
-    # Step 4: Claude audit per batch
-    all_problems: list[Problem] = []
-    for i, batch in enumerate(batches):
-        fragments_text = "\n\n---\n\n".join(
-            f"[Источник: {f.url or 'N/A'}]\n{f.content}" for f in batch
-        )
-        user_msg = AUDIT_USER_TEMPLATE.format(domain=domain, law_fragments=fragments_text)
-
-        try:
-            raw_response = claude_client.complete(AUDIT_SYSTEM, user_msg)
-            logger.info("Batch %d Claude raw response: %s", i, raw_response[:300])
-            parsed = _parse_problems_json(raw_response)
-            for raw_problem in parsed:
-                combined_text = "\n---\n".join(f.content[:500] for f in batch)
-                problem = _validate_problem(raw_problem, domain, combined_text)
-                if problem:
-                    all_problems.append(problem)
-        except (json.JSONDecodeError, Exception) as exc:
-            logger.error("Batch %d audit failed: %s", i, exc)
-
-        _audit_status[domain].completed_batches = i + 1
-        _audit_status[domain].problems_found = len(all_problems)
+    # Step 4: run all batches in parallel
+    batch_results = await asyncio.gather(
+        *[_audit_batch_async(batch, domain, i) for i, batch in enumerate(batches)],
+        return_exceptions=False,
+    )
+    all_problems: list[Problem] = [p for probs in batch_results for p in probs]
+    _audit_status[domain].completed_batches = len(batches)
+    _audit_status[domain].problems_found = len(all_problems)
 
     # Step 5: sort by severity
     all_problems.sort(key=lambda p: SEVERITY_ORDER.get(p.severity, 99))

@@ -97,6 +97,14 @@ async function startAudit() {
   renderTable();
 
   try {
+    progressText.textContent = "Генерация запросов...";
+    await fetch(`${API}/api/audit/plan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain }),
+    });
+
+    progressText.textContent = "Запуск аудита...";
     await fetch(`${API}/api/audit/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

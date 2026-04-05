@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.audit_pipeline import get_results, get_status, run_audit
+from backend.audit_pipeline import get_results, get_status, plan_audit, run_audit
 from backend.config import ADILET_URL, DOMAIN_LABELS, DOMAIN_QUERIES
 from backend.fix_pipeline import generate_fix
 from backend.models import (
@@ -82,6 +82,18 @@ async def trigger_nia_index():
         return {"status": "indexing_started", "detail": result}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.post("/api/audit/plan")
+async def audit_plan(req: AuditRequest):
+    """Generate targeted search queries for the domain using Claude."""
+    if req.domain not in DOMAIN_QUERIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown domain '{req.domain}'. Available: {list(DOMAIN_QUERIES.keys())}",
+        )
+    queries = await plan_audit(req.domain)
+    return {"domain": req.domain, "queries": queries, "count": len(queries)}
 
 
 @app.post("/api/audit/run")
