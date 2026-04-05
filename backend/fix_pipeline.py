@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 
 def _parse_fix_json(raw: str) -> dict:
     cleaned = raw.strip()
-    fence_match = re.search(r"```(?:json)?\s*(\{[\s\S]*?})\s*```", cleaned)
+    fence_match = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", cleaned)
     if fence_match:
         cleaned = fence_match.group(1)
     else:
-        obj_match = re.search(r"\{[\s\S]*}", cleaned)
+        obj_match = re.search(r"\{[\s\S]*\}", cleaned)
         if obj_match:
             cleaned = obj_match.group(0)
     return json.loads(cleaned)
@@ -50,7 +50,8 @@ async def generate_fix(problem: Problem, law_text: str = "") -> FixResponse:
         law_text=context,
     )
 
-    raw_response = claude_client.complete(FIX_SYSTEM, user_msg)
+    import asyncio
+    raw_response = await asyncio.to_thread(claude_client.complete, FIX_SYSTEM, user_msg)
     parsed = _parse_fix_json(raw_response)
 
     return FixResponse(

@@ -114,10 +114,19 @@ async def plan_audit(domain: str) -> list[str]:
     user_msg = PLAN_USER_TEMPLATE.format(domain=domain)
     raw = await asyncio.to_thread(claude_client.complete, PLAN_SYSTEM, user_msg)
     cleaned = raw.strip()
-    arr_match = re.search(r"\[[\s\S]*\]", cleaned)
+    queries: list[str] = []
     try:
-        queries: list[str] = json.loads(arr_match.group(0)) if arr_match else []
-    except json.JSONDecodeError:
+        # Try parsing the whole response as JSON first
+        parsed = json.loads(re.search(r"[\[{][\s\S]*[\]}]", cleaned).group(0))
+        if isinstance(parsed, list):
+            queries = [q for q in parsed if isinstance(q, str)]
+        elif isinstance(parsed, dict):
+            # Claude returned a richer object — extract whichever key holds the query list
+            for key in ("targeted_queries", "queries", "запросы"):
+                if isinstance(parsed.get(key), list):
+                    queries = [q for q in parsed[key] if isinstance(q, str)]
+                    break
+    except Exception:
         queries = []
     store_plan_queries(domain, queries)
     logger.info("Plan generated %d queries for domain '%s'", len(queries), domain)
@@ -188,7 +197,7 @@ def _build_cross_check_queries(problem: Problem) -> list[str]:
 def _parse_cross_check_json(raw: str) -> dict:
     """Extract a JSON object from Claude's cross-check response."""
     cleaned = raw.strip()
-    fence_match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", cleaned)
+    fence_match = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", cleaned)
     if fence_match:
         cleaned = fence_match.group(1)
     else:
@@ -216,7 +225,9 @@ async def _enrich_with_cross_check(
         related_fragments=related_text,
     )
     try:
-        raw = claude_client.complete(CROSS_CHECK_SYSTEM, user_msg, use_thinking=True)
+        raw = await asyncio.to_thread(
+            claude_client.complete, CROSS_CHECK_SYSTEM, user_msg, use_thinking=True
+        )
         data = _parse_cross_check_json(raw)
         if not data.get("confirmed", True):
             logger.info("Cross-check did not confirm problem %s — keeping original", problem.id)
