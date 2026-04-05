@@ -65,3 +65,7 @@ Browser Dashboard  →  FastAPI Backend  →  Nia API (law retrieval)
 - **Frontend**: Vanilla JS, Tailwind CSS
 - **AI**: Claude (audit analysis + fix generation)
 - **Data**: Nia API (legal corpus search)
+
+
+ ## Or open via link
+ https://legislative-ai-production.up.railway.app/
